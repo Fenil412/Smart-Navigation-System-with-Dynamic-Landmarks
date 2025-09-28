@@ -16,6 +16,8 @@ class GraphService {
       
       // Load nodes
       const nodes = await Node.find({});
+      console.log(`Found ${nodes.length} nodes in database`);
+      
       for (let node of nodes) {
         this.graph.addNode(node.nodeId, {
           latitude: node.latitude,
@@ -28,6 +30,8 @@ class GraphService {
 
       // Load edges with proper weight calculation
       const edges = await Edge.find({});
+      console.log(`Found ${edges.length} edges in database`);
+      
       for (let edge of edges) {
         // Calculate weight based on road type and distance if not provided
         const baseWeight = edge.weight || 
@@ -68,11 +72,23 @@ class GraphService {
 
   async findNearestNode(latitude, longitude, maxDistance = SEARCH_RADIUS.NEAREST_NODE) {
     try {
-      // Use MongoDB's geospatial query if available
-      const nearbyNodes = await Node.findWithinRadius(latitude, longitude, maxDistance);
+      console.log(`Finding nearest node for coordinates: ${latitude}, ${longitude}`);
+      
+      // Convert to numbers to ensure proper handling
+      const lat = Number(latitude);
+      const lng = Number(longitude);
+      const maxDist = Number(maxDistance);
+
+      if (isNaN(lat) || isNaN(lng)) {
+        throw new Error('Invalid coordinates provided');
+      }
+
+      // Use MongoDB's geospatial query
+      const nearbyNodes = await Node.findWithinRadius(lat, lng, maxDist);
+      console.log(`Found ${nearbyNodes.length} nearby nodes`);
       
       if (nearbyNodes.length === 0) {
-        throw new Error(`No nodes found within ${maxDistance} meters of the specified location`);
+        throw new Error(`No nodes found within ${maxDist} meters of the specified location`);
       }
 
       // Find the closest node using our coordinate utils
@@ -81,7 +97,7 @@ class GraphService {
 
       for (let node of nearbyNodes) {
         const distance = CoordinateUtils.calculateDistance(
-          latitude, longitude,
+          lat, lng,
           node.latitude, node.longitude
         ) * 1000; // Convert to meters
 
@@ -95,6 +111,8 @@ class GraphService {
         throw new Error('Could not find a suitable node near the specified coordinates');
       }
 
+      console.log(`Found nearest node: ${nearestNode.nodeId} at distance ${minDistance}m`);
+      
       return {
         nodeId: nearestNode.nodeId,
         latitude: nearestNode.latitude,
@@ -111,11 +129,15 @@ class GraphService {
 
   findNodesWithinRadius(latitude, longitude, radiusMeters) {
     const nodes = this.graph.getAllNodes();
+    const lat = Number(latitude);
+    const lng = Number(longitude);
+    const radius = Number(radiusMeters);
+    
     return nodes.filter(node => 
       CoordinateUtils.isPointInRadius(
-        latitude, longitude, 
+        lat, lng, 
         node.latitude, node.longitude, 
-        radiusMeters
+        radius
       )
     );
   }

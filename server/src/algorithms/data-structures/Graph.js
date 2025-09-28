@@ -26,12 +26,30 @@ class Graph {
     };
 
     this.edges.set(edgeId, edge);
-    this.adjacencyList.get(fromNode).push({ node: toNode, weight, edgeId });
+    this.adjacencyList.get(fromNode).push({ 
+      node: toNode, 
+      weight, 
+      edgeId,
+      edgeData: edge
+    });
 
     // If bidirectional, add reverse edge
     if (data.bidirectional !== false) {
       const reverseEdgeId = `${edgeId}_reverse`;
-      this.adjacencyList.get(toNode).push({ node: fromNode, weight, edgeId: reverseEdgeId });
+      const reverseEdge = {
+        ...edge,
+        edgeId: reverseEdgeId,
+        fromNode: toNode,
+        toNode: fromNode
+      };
+      
+      this.edges.set(reverseEdgeId, reverseEdge);
+      this.adjacencyList.get(toNode).push({ 
+        node: fromNode, 
+        weight, 
+        edgeId: reverseEdgeId,
+        edgeData: reverseEdge
+      });
     }
   }
 
@@ -57,6 +75,9 @@ class Graph {
         for (let neighbor of neighbors) {
           if (neighbor.edgeId === edgeId) {
             neighbor.weight = newWeight;
+            if (neighbor.edgeData) {
+              neighbor.edgeData.weight = newWeight;
+            }
           }
         }
       }
@@ -69,6 +90,23 @@ class Graph {
 
   getAllEdges() {
     return Array.from(this.edges.values());
+  }
+
+  // Check if path exists between two nodes
+  hasPath(startNode, endNode, visited = new Set()) {
+    if (startNode === endNode) return true;
+    if (visited.has(startNode)) return false;
+
+    visited.add(startNode);
+    const neighbors = this.getNeighbors(startNode);
+
+    for (let neighbor of neighbors) {
+      if (this.hasPath(neighbor.node, endNode, visited)) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   // For debugging

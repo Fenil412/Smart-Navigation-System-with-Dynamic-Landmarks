@@ -41,16 +41,25 @@ const nodeSchema = new mongoose.Schema({
 // Create 2dsphere index for geospatial queries
 nodeSchema.index({ latitude: 1, longitude: 1 });
 
-// Static method to find nodes within radius
+// Static method to find nodes within radius - FIXED
 nodeSchema.statics.findWithinRadius = function(latitude, longitude, radiusMeters = 1000) {
+  // Convert parameters to numbers to avoid string concatenation
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+  const radius = Number(radiusMeters);
+  
+  // Calculate approximate degrees for latitude and longitude
+  const latDelta = radius / 111320; // meters per degree latitude
+  const lngDelta = radius / (111320 * Math.cos(lat * Math.PI / 180)); // meters per degree longitude
+  
   return this.find({
     latitude: { 
-      $gte: latitude - (radiusMeters / 111320),
-      $lte: latitude + (radiusMeters / 111320)
+      $gte: lat - latDelta,
+      $lte: lat + latDelta
     },
     longitude: {
-      $gte: longitude - (radiusMeters / (111320 * Math.cos(latitude * Math.PI / 180))),
-      $lte: longitude + (radiusMeters / (111320 * Math.cos(latitude * Math.PI / 180)))
+      $gte: lng - lngDelta,
+      $lte: lng + lngDelta
     }
   });
 };

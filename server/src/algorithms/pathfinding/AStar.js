@@ -51,16 +51,18 @@ class AStar {
       for (let neighbor of neighbors) {
         if (closedSet.has(neighbor.node)) continue;
 
-        // Apply road preferences
+        // Apply road preferences - FIXED: Check if edge exists
         let weight = neighbor.weight;
         const edge = this.graph.getEdge(neighbor.edgeId);
         
-        if (avoidHighways && edge.roadType === 'highway') {
-          weight *= 2; // Penalize highways
-        }
-        
-        if (preferMainRoads && (edge.roadType === 'local' || edge.roadType === 'secondary')) {
-          weight *= 1.5; // Penalize local roads
+        if (edge) {
+          if (avoidHighways && edge.roadType === 'highway') {
+            weight *= 2; // Penalize highways
+          }
+          
+          if (preferMainRoads && (edge.roadType === 'local' || edge.roadType === 'secondary')) {
+            weight *= 1.5; // Penalize local roads
+          }
         }
 
         const tentativeGScore = gScore.get(currentNode) + weight;
@@ -73,7 +75,12 @@ class AStar {
           gScore.set(neighbor.node, tentativeGScore);
           fScore.set(neighbor.node, tentativeGScore + this.heuristic(neighbor.node, endNode));
 
-          if (!openSet.heap.some(item => item.value === neighbor.node)) {
+          // Update priority if already in open set, otherwise insert
+          const existingIndex = openSet.heap.findIndex(item => item.value === neighbor.node);
+          if (existingIndex !== -1) {
+            openSet.heap[existingIndex].priority = fScore.get(neighbor.node);
+            openSet.heapifyUp(existingIndex);
+          } else {
             openSet.insert(neighbor.node, fScore.get(neighbor.node));
           }
         }
@@ -90,11 +97,12 @@ class AStar {
     while (currentNode !== null) {
       const prev = previous.get(currentNode);
       if (prev) {
+        const edgeData = this.graph.getEdge(prev.edgeId);
         path.unshift({
           fromNode: prev.node,
           toNode: currentNode,
           edgeId: prev.edgeId,
-          edgeData: this.graph.getEdge(prev.edgeId)
+          edgeData: edgeData || null
         });
         currentNode = prev.node;
       } else {
