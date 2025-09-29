@@ -32,16 +32,15 @@ class DStarLite {
     
     // Set goal node rhs to 0
     this.rhs.set(goalNode, 0);
-    const initialKey = this.calculateKey(goalNode);
-    this.U.insert(goalNode, initialKey.k1);
+    this.U.insert(goalNode, this.calculateKey(goalNode).k1);
     
     console.log(`D* Lite: Goal node ${goalNode} initialized with rhs=0`);
     console.log(`D* Lite: Priority queue size: ${this.U.size()}`);
   }
 
   calculateKey(node) {
-    const gVal = this.g.get(node) || Infinity;
-    const rhsVal = this.rhs.get(node) || Infinity;
+    const gVal = this.g.get(node);
+    const rhsVal = this.rhs.get(node);
     const minVal = Math.min(gVal, rhsVal);
     const heuristic = this.heuristic(this.startNode, node);
     
@@ -52,64 +51,59 @@ class DStarLite {
   }
 
   heuristic(node1, node2) {
-    const node1Data = this.graph.getNode(node1);
-    const node2Data = this.graph.getNode(node2);
-    
-    if (!node1Data || !node2Data) {
-      console.log(`D* Lite: Missing node data for heuristic: ${node1} or ${node2}`);
-      return Infinity;
+    try {
+      const node1Data = this.graph.getNode(node1);
+      const node2Data = this.graph.getNode(node2);
+      
+      if (!node1Data || !node2Data) {
+        return 0;
+      }
+
+      const lat1 = Number(node1Data.latitude);
+      const lon1 = Number(node1Data.longitude);
+      const lat2 = Number(node2Data.latitude);
+      const lon2 = Number(node2Data.longitude);
+      
+      const dLat = lat2 - lat1;
+      const dLon = lon2 - lon1;
+      
+      return Math.sqrt(dLat * dLat + dLon * dLon) * 111;
+    } catch (error) {
+      return 0;
     }
-
-    // Haversine distance as heuristic
-    const R = 6371; // Earth's radius in km
-    const dLat = this.toRad(node2Data.latitude - node1Data.latitude);
-    const dLon = this.toRad(node2Data.longitude - node1Data.longitude);
-    
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(this.toRad(node1Data.latitude)) * Math.cos(this.toRad(node2Data.latitude)) * 
-              Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    
-    return R * c; // Distance in km
-  }
-
-  toRad(degrees) {
-    return degrees * (Math.PI / 180);
   }
 
   updateVertex(u) {
     // Remove from priority queue if present
-    this.U.heap = this.U.heap.filter(item => item.value !== u);
+    this.U.remove(u);
     
     if (this.g.get(u) !== this.rhs.get(u)) {
-      const key = this.calculateKey(u);
-      this.U.insert(u, key.k1);
+      this.U.insert(u, this.calculateKey(u).k1);
     }
   }
 
   computeShortestPath() {
     console.log(`D* Lite: Starting computeShortestPath, queue size: ${this.U.size()}`);
-    let iterations = 0;
-    const maxIterations = 1000; // Safety limit
     
-    while (!this.U.isEmpty() && iterations < maxIterations) {
-      iterations++;
+    let iterations = 0;
+    const maxIterations = 1000;
+    
+    while (!this.U.isEmpty() && 
+           (this.compareKeys(this.U.peek().priority, this.calculateKey(this.startNode).k1) < 0 || 
+            this.rhs.get(this.startNode) !== this.g.get(this.startNode))) {
       
-      const currentKey = this.calculateKey(this.startNode);
-      const topNode = this.U.peek();
-      
-      // Check termination condition
-      if (topNode.priority >= currentKey.k1 && this.rhs.get(this.startNode) === this.g.get(this.startNode)) {
+      if (iterations++ > maxIterations) {
+        console.log('D* Lite: Max iterations reached');
         break;
       }
       
       const u = this.U.extractMin().value;
-      const gU = this.g.get(u) || Infinity;
-      const rhsU = this.rhs.get(u) || Infinity;
-      const keyU = this.calculateKey(u);
+      const k_old = this.calculateKey(u);
+      const gU = this.g.get(u);
+      const rhsU = this.rhs.get(u);
 
       if (gU > rhsU) {
-        // Overconsistent
+        // Overconsistent - update g value
         this.g.set(u, rhsU);
         
         // Update all predecessors
@@ -119,7 +113,7 @@ class DStarLite {
           this.updateVertex(pred);
         }
       } else {
-        // Underconsistent
+        // Underconsistent - set g to infinity and update
         this.g.set(u, Infinity);
         
         // Update this vertex and its predecessors
@@ -135,7 +129,14 @@ class DStarLite {
     }
     
     console.log(`D* Lite: computeShortestPath completed in ${iterations} iterations`);
-    console.log(`D* Lite: startNode g=${this.g.get(this.startNode)}, rhs=${this.rhs.get(this.startNode)}`);
+  }
+
+  compareKeys(k1, k2) {
+    // Handle Infinity comparisons
+    if (k1 === Infinity && k2 === Infinity) return 0;
+    if (k1 === Infinity) return 1;
+    if (k2 === Infinity) return -1;
+    return k1 - k2;
   }
 
   updateRhs(u) {
@@ -150,7 +151,7 @@ class DStarLite {
     const neighbors = this.graph.getNeighbors(u);
     
     for (let neighbor of neighbors) {
-      const gVal = this.g.get(neighbor.node) || Infinity;
+      const gVal = this.g.get(neighbor.node);
       const totalCost = gVal + neighbor.weight;
       
       if (totalCost < minRhs) {
@@ -176,26 +177,6 @@ class DStarLite {
     return predecessors;
   }
 
-  updateEdge(edgeId, newWeight) {
-    console.log(`D* Lite: Updating edge ${edgeId} to weight ${newWeight}`);
-    
-    const edge = this.graph.getEdge(edgeId);
-    if (edge) {
-      const oldWeight = edge.weight;
-      this.graph.updateEdgeWeight(edgeId, newWeight);
-      
-      // Update affected vertices
-      this.updateRhs(edge.fromNode);
-      this.updateVertex(edge.fromNode);
-      
-      this.updateRhs(edge.toNode);
-      this.updateVertex(edge.toNode);
-      
-      // Update km based on start node movement (simplified)
-      this.km += Math.abs(newWeight - oldWeight);
-    }
-  }
-
   getPath() {
     console.log(`D* Lite: Getting path from ${this.startNode} to ${this.goalNode}`);
     
@@ -208,8 +189,6 @@ class DStarLite {
     let current = this.startNode;
     let visited = new Set();
     
-    console.log(`D* Lite: Starting path reconstruction from ${current}`);
-
     while (current !== this.goalNode && current !== null) {
       if (visited.has(current)) {
         console.log(`D* Lite: Cycle detected at node ${current}`);
@@ -218,18 +197,10 @@ class DStarLite {
       visited.add(current);
 
       const next = this.previous.get(current);
-      console.log(`D* Lite: Current: ${current}, Next: ${next}`);
-
-      if (!next) {
-        console.log(`D* Lite: No next node found from ${current}`);
-        break;
-      }
+      if (!next) break;
 
       const edgeId = this.getEdgeId(current, next);
-      if (!edgeId) {
-        console.log(`D* Lite: No edge found from ${current} to ${next}`);
-        break;
-      }
+      if (!edgeId) break;
 
       const edgeData = this.graph.getEdge(edgeId);
       path.push({
@@ -239,28 +210,14 @@ class DStarLite {
         edgeData: edgeData
       });
 
-      console.log(`D* Lite: Added segment ${current} -> ${next}`);
-
       current = next;
 
-      // Safety limit
-      if (path.length > 50) {
-        console.log(`D* Lite: Path too long, possible infinite loop`);
-        break;
-      }
+      if (path.length > 50) break;
     }
 
     console.log(`D* Lite: Path reconstruction complete, length: ${path.length}`);
     
-    if (path.length === 0) {
-      console.log(`D* Lite: Empty path generated`);
-      return null;
-    }
-
-    // Check if we reached the goal
-    const lastNode = path[path.length - 1].toNode;
-    if (lastNode !== this.goalNode) {
-      console.log(`D* Lite: Path does not reach goal. Last node: ${lastNode}, Goal: ${this.goalNode}`);
+    if (path.length === 0 || path[path.length - 1].toNode !== this.goalNode) {
       return null;
     }
 
@@ -273,14 +230,6 @@ class DStarLite {
     return neighbor ? neighbor.edgeId : null;
   }
 
-  // Method to update start position for replanning
-  updateStart(newStartNode) {
-    console.log(`D* Lite: Updating start from ${this.startNode} to ${newStartNode}`);
-    this.km += this.heuristic(this.startNode, newStartNode);
-    this.startNode = newStartNode;
-    this.computeShortestPath();
-  }
-
   // Debug method to print state
   printState() {
     console.log('D* Lite State:');
@@ -288,7 +237,7 @@ class DStarLite {
     console.log(`KM: ${this.km}`);
     console.log('Queue size:', this.U.size());
     
-    const nodes = ['N1', 'N2', 'N3', 'N4', 'N5', 'N6'];
+    const nodes = Array.from(this.graph.nodes.keys()).sort();
     for (let node of nodes) {
       console.log(`${node}: g=${this.g.get(node)}, rhs=${this.rhs.get(node)}, prev=${this.previous.get(node)}`);
     }

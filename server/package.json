@@ -8,6 +8,8 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "seed": "node scripts/seedData.js",
+    "test-dstar": "node scripts/testDStarLite.js",
+    "test-graph": "node scripts/testGraphConnectivity.js",
     "test": "jest"
   },
   "dependencies": {

@@ -53,6 +53,17 @@ class MinHeap {
     this.heapifyUp();
   }
 
+  comparePriority(a, b) {
+    if (a.priority !== b.priority) {
+      return a.priority - b.priority;
+    }
+    // If we need to compare by k2 when k1 is equal
+    if (a.value.key && b.value.key) {
+      return a.value.key.k2 - b.value.key.k2;
+    }
+    return 0;
+  }
+
   extractMin() {
     if (this.heap.length === 0) return null;
     const min = this.heap[0];
@@ -62,23 +73,41 @@ class MinHeap {
     return min;
   }
 
-  heapifyUp() {
-    let index = this.heap.length - 1;
+  remove(value) {
+    const index = this.heap.findIndex(item => item.value === value);
+    if (index === -1) return false;
+    
+    // Move the element to the end and remove it
+    this.heap[index] = this.heap[this.heap.length - 1];
+    this.heap.pop();
+    
+    // Re-heapify
+    if (index < this.heap.length) {
+      this.heapifyUp(index);
+      this.heapifyDown(index);
+    }
+    
+    return true;
+  }
+
+  heapifyUp(startIndex) {
+    let index = startIndex;
     while (this.hasParent(index) && this.parent(index).priority > this.heap[index].priority) {
       this.swap(this.getParentIndex(index), index);
       index = this.getParentIndex(index);
     }
   }
-
+  
   heapifyDown() {
     let index = 0;
     while (this.hasLeftChild(index)) {
       let smallerChildIndex = this.getLeftChildIndex(index);
-      if (this.hasRightChild(index) && this.rightChild(index).priority < this.leftChild(index).priority) {
+      if (this.hasRightChild(index) && 
+          this.comparePriority(this.heap[this.getRightChildIndex(index)], this.heap[smallerChildIndex]) < 0) {
         smallerChildIndex = this.getRightChildIndex(index);
       }
 
-      if (this.heap[index].priority < this.heap[smallerChildIndex].priority) {
+      if (this.comparePriority(this.heap[index], this.heap[smallerChildIndex]) < 0) {
         break;
       } else {
         this.swap(index, smallerChildIndex);
