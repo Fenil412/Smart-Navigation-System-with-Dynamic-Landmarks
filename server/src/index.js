@@ -10,6 +10,8 @@ import connectDB from './config/database.js';
 import routes from './routes/index.js';
 import socketHandler from './websocket/socketHandler.js';
 import GraphService from './services/GraphService.js';
+import EventService from './services/EventService.js';
+import NavigationService from './services/NavigationService.js';
 
 dotenv.config();
 
@@ -17,7 +19,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173",
+    origin: "http://localhost:5173", // Frontend URL
     methods: ["GET", "POST"]
   }
 });
@@ -37,8 +39,12 @@ app.use(limiter);
 // Routes
 app.use('/api', routes);
 
-// WebSocket handling
-socketHandler(io);
+// Initialize Socket.IO
+const socketHandlers = socketHandler(io);
+
+// Initialize services with socket handlers
+EventService.setSocketHandler(socketHandlers);
+NavigationService.setSocketHandler(socketHandlers);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -64,6 +70,7 @@ const startServer = async () => {
     
     server.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
+      console.log(`WebSocket server ready for connections`);
     });
   } catch (error) {
     console.error('Failed to start server:', error);

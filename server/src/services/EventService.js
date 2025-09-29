@@ -1,8 +1,18 @@
 import DynamicEvent from '../models/DynamicEvent.js';
 import GraphService from './GraphService.js';
 import { EVENT_IMPACT_FACTORS, SEARCH_RADIUS, EVENT_TYPES, EVENT_SEVERITY } from '../utils/constants.js';
+import { getSocketHandler } from '../websocket/socketHandler.js';
 
 class EventService {
+  constructor() {
+    this.socketHandler = null;
+  }
+
+  // Method to set socket handler after initialization
+  setSocketHandler(handler) {
+    this.socketHandler = handler;
+  }
+
   async createEvent(eventData) {
     try {
       console.log('Creating event with data:', eventData);
@@ -36,6 +46,12 @@ class EventService {
       
       // Update graph weights based on event
       this.applyEventToGraph(savedEvent);
+      
+      // Broadcast new event to all connected clients
+      if (this.socketHandler) {
+        this.socketHandler.broadcastNewEvent(savedEvent);
+        console.log('Event broadcasted to all clients');
+      }
       
       return savedEvent;
     } catch (error) {
@@ -124,6 +140,12 @@ class EventService {
       
       // Revert graph weights
       this.revertEventFromGraph(updatedEvent);
+      
+      // Broadcast event deactivation
+      if (this.socketHandler) {
+        this.socketHandler.broadcastNewEvent(updatedEvent);
+        console.log('Event deactivation broadcasted');
+      }
       
       return updatedEvent;
     } catch (error) {
