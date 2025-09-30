@@ -9,6 +9,7 @@ const socketHandler = (io) => {
   
   io.on('connection', (socket) => {
     console.log('Client connected:', socket.id);
+    console.log('Client origin:', socket.handshake.headers.origin);
 
     // Route management
     socket.on('join_route', (routeId) => {
@@ -57,8 +58,12 @@ const socketHandler = (io) => {
       // Note: We would need to track and clear intervals in a real implementation
     });
 
-    socket.on('disconnect', () => {
-      console.log('Client disconnected:', socket.id);
+    socket.on('disconnect', (reason) => {
+      console.log(`Client disconnected: ${socket.id}, reason: ${reason}`);
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('Socket connection error:', error);
     });
   });
 

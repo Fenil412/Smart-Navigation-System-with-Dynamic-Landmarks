@@ -17,16 +17,22 @@ dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
+
+// Enhanced CORS configuration
+const corsOptions = {
+  origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  credentials: true,
+  allowedHeaders: ["Content-Type", "Authorization"]
+};
+
 const io = new Server(server, {
-  cors: {
-    origin: "http://localhost:5173", // Frontend URL
-    methods: ["GET", "POST"]
-  }
+  cors: corsOptions
 });
 
 // Middleware
 app.use(helmet());
-app.use(cors());
+app.use(cors(corsOptions)); // Apply CORS to Express routes too
 app.use(express.json());
 
 // Rate limiting
@@ -71,6 +77,7 @@ const startServer = async () => {
     server.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
       console.log(`WebSocket server ready for connections`);
+      console.log(`CORS enabled for: http://localhost:5173`);
     });
   } catch (error) {
     console.error('Failed to start server:', error);
