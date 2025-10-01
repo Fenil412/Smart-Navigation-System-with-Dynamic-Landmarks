@@ -5,7 +5,8 @@ import {
   Play, 
   Square, 
   Trash2,
-  X
+  X,
+  RefreshCw
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useNavigation } from '../../hooks/useNavigation';
@@ -14,11 +15,12 @@ const Sidebar = () => {
   const { state, dispatch } = useApp();
   const { 
     calculateRoute, 
+    createEvent, 
     startSimulation, 
     stopSimulation, 
     clearRoute, 
     isCalculating,
-    createEvent 
+    updateVehiclePosition 
   } = useNavigation();
 
   // Safe access to state properties
@@ -30,6 +32,7 @@ const Sidebar = () => {
   const isSimulating = state?.isSimulating || false;
   const dynamicEvents = state?.dynamicEvents || [];
   const sidebarOpen = state?.sidebarOpen !== false;
+  const isConnected = state?.isConnected || false;
 
   const handleSetStartPoint = () => {
     dispatch({ 
@@ -55,6 +58,11 @@ const Sidebar = () => {
       return;
     }
 
+    if (!isConnected) {
+      dispatch({ type: 'SET_ERROR', payload: 'Cannot create events: No server connection' });
+      return;
+    }
+
     const eventData = {
       type,
       severity: 'medium',
@@ -67,6 +75,36 @@ const Sidebar = () => {
     };
 
     await createEvent(eventData);
+  };
+
+  const handleManualSimulation = () => {
+    if (!currentRoute) {
+      dispatch({ type: 'SET_ERROR', payload: 'No route to simulate' });
+      return;
+    }
+
+    // Simple manual simulation
+    let progress = 0;
+    const interval = setInterval(() => {
+      if (progress >= 1) {
+        clearInterval(interval);
+        dispatch({ type: 'SET_SIMULATION_STATUS', payload: false });
+        return;
+      }
+
+      progress += 0.1;
+      updateVehiclePosition({
+        position: {
+          latitude: startPoint.lat + (endPoint.lat - startPoint.lat) * progress,
+          longitude: startPoint.lng + (endPoint.lng - startPoint.lng) * progress
+        },
+        currentSegment: 0,
+        progress: progress,
+        timestamp: new Date().toISOString()
+      });
+    }, 500);
+
+    dispatch({ type: 'SET_SIMULATION_STATUS', payload: true });
   };
 
   return (
@@ -86,6 +124,25 @@ const Sidebar = () => {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        {/* Connection Status */}
+        <div className={`p-3 rounded-lg ${
+          isConnected ? 'bg-green-50 border border-green-200' : 'bg-yellow-50 border border-yellow-200'
+        }`}>
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${
+              isConnected ? 'bg-green-500' : 'bg-yellow-500'
+            }`} />
+            <span className={isConnected ? "text-green-700" : "text-yellow-700"}>
+              {isConnected ? 'Connected to Server' : 'Offline Mode'}
+            </span>
+          </div>
+          {!isConnected && (
+            <p className="text-xs text-yellow-600 mt-1">
+              Basic route calculation available
+            </p>
+          )}
+        </div>
+
         {/* Route Points */}
         <div className="space-y-3">
           <h2 className="text-lg font-semibold text-gray-700">Route Points</h2>
@@ -133,94 +190,78 @@ const Sidebar = () => {
           </div>
         </div>
 
-        {/* Route Options */}
+        {/* Route Calculation */}
         <div className="space-y-3">
-          <h2 className="text-lg font-semibold text-gray-700">Options</h2>
-          <div className="space-y-2">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={routeOptions.avoidHighways}
-                onChange={(e) => dispatch({
-                  type: 'SET_ROUTE_OPTIONS',
-                  payload: { avoidHighways: e.target.checked }
-                })}
-                className="rounded"
-              />
-              <span className="text-sm text-gray-700">Avoid Highways</span>
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={routeOptions.preferMainRoads}
-                onChange={(e) => dispatch({
-                  type: 'SET_ROUTE_OPTIONS',
-                  payload: { preferMainRoads: e.target.checked }
-                })}
-                className="rounded"
-              />
-              <span className="text-sm text-gray-700">Prefer Main Roads</span>
-            </label>
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="space-y-3">
-          <h2 className="text-lg font-semibold text-gray-700">Actions</h2>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={calculateRoute}
-              disabled={isCalculating || !startPoint || !endPoint}
-              className="flex items-center justify-center gap-2 p-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-            >
-              <Navigation size={18} />
-              {isCalculating ? 'Calculating...' : 'Calculate Route'}
-            </button>
-
-            {isSimulating ? (
-              <button
-                onClick={stopSimulation}
-                className="flex items-center justify-center gap-2 p-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
-              >
-                <Square size={18} />
-                Stop
-              </button>
+          <h2 className="text-lg font-semibold text-gray-700">Calculate Route</h2>
+          <button
+            onClick={calculateRoute}
+            disabled={isCalculating || !startPoint || !endPoint}
+            className="w-full flex items-center justify-center gap-2 p-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+          >
+            <Navigation size={18} />
+            {isCalculating ? (
+              <>
+                <RefreshCw size={16} className="animate-spin" />
+                Calculating...
+              </>
             ) : (
-              <button
-                onClick={startSimulation}
-                disabled={!currentRoute}
-                className="flex items-center justify-center gap-2 p-3 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-              >
-                <Play size={18} />
-                Simulate
-              </button>
+              'Calculate Route'
             )}
-
-            <button
-              onClick={clearRoute}
-              className="flex items-center justify-center gap-2 p-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors col-span-2"
-            >
-              <Trash2 size={18} />
-              Clear Route
-            </button>
-          </div>
+          </button>
         </div>
 
-        {/* Dynamic Events */}
-        <div className="space-y-3">
-          <h2 className="text-lg font-semibold text-gray-700">Dynamic Events</h2>
-          <div className="grid grid-cols-2 gap-2">
-            {['traffic_jam', 'road_closure', 'accident', 'construction'].map((type) => (
+        {/* Simulation */}
+        {currentRoute && (
+          <div className="space-y-3">
+            <h2 className="text-lg font-semibold text-gray-700">Simulation</h2>
+            <div className="grid grid-cols-2 gap-2">
+              {isSimulating ? (
+                <button
+                  onClick={stopSimulation}
+                  className="flex items-center justify-center gap-2 p-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                >
+                  <Square size={18} />
+                  Stop
+                </button>
+              ) : (
+                <button
+                  onClick={isConnected ? startSimulation : handleManualSimulation}
+                  className="flex items-center justify-center gap-2 p-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                >
+                  <Play size={18} />
+                  {isConnected ? 'Simulate' : 'Manual Sim'}
+                </button>
+              )}
+
               <button
-                key={type}
-                onClick={() => handleCreateEvent(type)}
-                className="p-2 bg-orange-100 border border-orange-200 rounded hover:bg-orange-200 transition-colors text-sm capitalize"
+                onClick={clearRoute}
+                className="flex items-center justify-center gap-2 p-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
               >
-                {type.replace('_', ' ')}
+                <Trash2 size={18} />
+                Clear
               </button>
-            ))}
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Dynamic Events (Only when connected) */}
+        {isConnected && (
+          <div className="space-y-3">
+            <h2 className="text-lg font-semibold text-gray-700">Dynamic Events</h2>
+            <div className="grid grid-cols-2 gap-2">
+              {['traffic_jam', 'road_closure', 'accident', 'construction'].map((type) => (
+                <button
+                  key={type}
+                  onClick={() => handleCreateEvent(type)}
+                  disabled={!startPoint}
+                  className="p-2 bg-orange-100 border border-orange-200 rounded hover:bg-orange-200 disabled:bg-gray-100 disabled:border-gray-200 disabled:text-gray-400 transition-colors text-sm capitalize"
+                >
+                  {type.replace('_', ' ')}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Route Info */}
         {currentRoute && (
@@ -248,3 +289,7 @@ const Sidebar = () => {
 };
 
 export default Sidebar;
+
+
+
+
