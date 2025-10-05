@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect } from "react"
-import { MapContainer, TileLayer, Polyline, Marker, Popup, Circle, useMap } from "react-leaflet"
+import { MapContainer, TileLayer, Polyline, Marker, Popup, Circle, CircleMarker, Tooltip, useMap } from "react-leaflet"
 import L from "leaflet"
 import { useNavigationStore } from "../store/navigationStore"
 import { socketService } from "../services/socketService"
@@ -42,16 +42,13 @@ const vehicleIcon = new L.Icon({
   shadowSize: [41, 41],
 })
 
-function MapController({ currentRoute, startCoords, endCoords }) {
+function MapController({ currentRoute, startCoords, endCoords, routeCoordinates }) {
   const map = useMap()
 
   useEffect(() => {
-    if (currentRoute && currentRoute.path && currentRoute.path.length > 0) {
-      const bounds = L.latLngBounds([
-        [currentRoute.startLocation.latitude, currentRoute.startLocation.longitude],
-        [currentRoute.endLocation.latitude, currentRoute.endLocation.longitude],
-      ])
-      map.fitBounds(bounds, { padding: [50, 50] })
+    if (routeCoordinates && routeCoordinates.length > 1) {
+      const bounds = L.latLngBounds(routeCoordinates)
+      map.fitBounds(bounds, { padding: [60, 60] })
     } else if (startCoords && endCoords) {
       const bounds = L.latLngBounds([
         [Number.parseFloat(startCoords.lat), Number.parseFloat(startCoords.lng)],
@@ -59,7 +56,7 @@ function MapController({ currentRoute, startCoords, endCoords }) {
       ])
       map.fitBounds(bounds, { padding: [50, 50] })
     }
-  }, [currentRoute, startCoords, endCoords, map])
+  }, [currentRoute, startCoords, endCoords, routeCoordinates, map])
 
   return null
 }
@@ -123,6 +120,31 @@ export default function MapView() {
   }
 
   const routeCoordinates = getRouteCoordinates()
+
+  // Build ordered route nodes for markers/labels
+  const getRouteNodes = () => {
+    if (!currentRoute || !currentRoute.path || !graphData) return []
+
+    const nodes = []
+    if (currentRoute.startLocation && currentRoute.startNode) {
+      nodes.push({
+        nodeId: currentRoute.startNode,
+        latitude: currentRoute.startLocation.latitude,
+        longitude: currentRoute.startLocation.longitude,
+      })
+    }
+
+    currentRoute.path.forEach((segment) => {
+      const node = graphData.nodes?.find((n) => n.nodeId === segment.toNode)
+      if (node) {
+        nodes.push({ nodeId: node.nodeId, latitude: node.latitude, longitude: node.longitude })
+      }
+    })
+
+    return nodes
+  }
+
+  const routeNodes = getRouteNodes()
 
   useEffect(() => {
     console.log("[v0] 👁️ Event visibility changed:", showAllEvents ? "showing" : "hiding", events.length, "events")
@@ -189,13 +211,28 @@ export default function MapView() {
         <Polyline
           positions={routeCoordinates}
           pathOptions={{
-            color: "#3b82f6",
-            weight: 5,
-            opacity: 0.8,
-            dashArray: "10, 5",
+            color: "#2563eb",
+            weight: 6,
+            opacity: 0.95,
           }}
         />
       )}
+
+      {/* Highlight path nodes in order */}
+      {routeNodes.map((node, index) => (
+        <CircleMarker
+          key={`route-node-${node.nodeId}`}
+          center={[node.latitude, node.longitude]}
+          radius={6}
+          pathOptions={{ color: "#10b981", fillColor: "#10b981", fillOpacity: 1 }}
+        >
+          <Tooltip direction="top" offset={[0, -6]} opacity={0.9} permanent={false}>
+            <div className="text-xs font-medium">
+              {index + 1}. {node.nodeId}
+            </div>
+          </Tooltip>
+        </CircleMarker>
+      ))}
 
       {/* Start marker */}
       {currentRoute?.startLocation && (
@@ -260,7 +297,12 @@ export default function MapView() {
           )
         })}
 
-      <MapController currentRoute={currentRoute} startCoords={startCoords} endCoords={endCoords} />
+      <MapController
+        currentRoute={currentRoute}
+        startCoords={startCoords}
+        endCoords={endCoords}
+        routeCoordinates={routeCoordinates}
+      />
     </MapContainer>
   )
 }
