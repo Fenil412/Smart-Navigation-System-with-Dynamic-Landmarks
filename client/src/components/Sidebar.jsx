@@ -32,6 +32,8 @@ export default function Sidebar() {
   const handleCalculateRoute = async () => {
     setLoading(true)
     try {
+      // Ensure socket is connected before we request data that depends on it later
+      await socketService.waitUntilConnected().catch(() => {})
       setStartCoords(startCoords)
       setEndCoords(endCoords)
 

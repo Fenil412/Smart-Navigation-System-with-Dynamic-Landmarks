@@ -18,6 +18,8 @@ class SocketService {
     this.socket = null
     this.listeners = new Map()
     this.isConnecting = false
+    this.pendingEmits = []
+    this.connectionPromise = null
   }
 
   connect() {
@@ -35,19 +37,37 @@ class SocketService {
     console.log("[v0] Attempting to connect to:", SOCKET_URL)
 
     this.socket = io(SOCKET_URL, {
-      transports: ["websocket", "polling"],
+      // Start with polling to avoid noisy websocket errors while page loads,
+      // then upgrade to websocket when possible
+      transports: ["polling", "websocket"],
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       reconnectionAttempts: 10,
       timeout: 10000,
       autoConnect: true,
-      forceNew: true,
+      forceNew: false,
     })
 
     this.socket.on("connect", () => {
       console.log("[v0] ✅ Socket connected successfully:", this.socket.id)
       this.isConnecting = false
+
+      // Attach any listeners that were registered before connect
+      for (const [event, callbacks] of this.listeners.entries()) {
+        callbacks.forEach((cb) => this.socket.on(event, cb))
+      }
+
+      // Flush any queued emits
+      if (this.pendingEmits.length > 0) {
+        this.pendingEmits.forEach(({ event, data }) => this.socket.emit(event, data))
+        this.pendingEmits = []
+      }
+
+      if (this.connectionPromise) {
+        this.connectionPromise.resolve()
+        this.connectionPromise = null
+      }
     })
 
     this.socket.on("disconnect", (reason) => {
@@ -64,6 +84,10 @@ class SocketService {
       console.error("[v0] 🔴 Socket connection error:", error.message)
       console.error("[v0] Make sure your backend is running on:", SOCKET_URL)
       this.isConnecting = false
+      if (this.connectionPromise) {
+        this.connectionPromise.reject(error)
+        this.connectionPromise = null
+      }
     })
 
     this.socket.on("error", (error) => {
@@ -106,14 +130,15 @@ class SocketService {
   }
 
   on(event, callback) {
+    // Store listener immediately
+    if (!this.listeners.has(event)) {
+      this.listeners.set(event, [])
+    }
+    this.listeners.get(event).push(callback)
+
+    // If socket already exists, attach now
     if (this.socket) {
       this.socket.on(event, callback)
-
-      // Store listener for cleanup
-      if (!this.listeners.has(event)) {
-        this.listeners.set(event, [])
-      }
-      this.listeners.get(event).push(callback)
     }
   }
 
@@ -143,8 +168,15 @@ class SocketService {
   emit(event, data) {
     if (this.socket?.connected) {
       this.socket.emit(event, data)
-    } else {
-      console.warn("Socket not connected. Cannot emit:", event)
+      return
+    }
+
+    console.warn("Socket not connected. Queuing emit:", event)
+    this.pendingEmits.push({ event, data })
+
+    // Try to connect if not already attempting
+    if (!this.isConnecting) {
+      this.connect()
     }
   }
 
@@ -175,6 +207,21 @@ class SocketService {
 
   isConnected() {
     return this.socket?.connected || false
+  }
+
+  // Utility: returns a promise that resolves once connected
+  waitUntilConnected() {
+    if (this.isConnected()) return Promise.resolve()
+    if (!this.connectionPromise) {
+      let resolve, reject
+      const p = new Promise((res, rej) => {
+        resolve = res
+        reject = rej
+      })
+      this.connectionPromise = { promise: p, resolve, reject }
+      this.connect()
+    }
+    return this.connectionPromise.promise
   }
 
   getConnectionState() {
