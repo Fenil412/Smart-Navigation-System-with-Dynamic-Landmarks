@@ -79,13 +79,24 @@ export default function MapView() {
 
   useEffect(() => {
     // Listen for vehicle position updates
-    socketService.on("vehicle_position_update", (data) => {
-      console.log("[v0] 🚗 Vehicle position update:", data)
-      setVehiclePosition(data)
-    })
+    const onVehicleUpdate = (data) => {
+      // Accept both raw {latitude, longitude} or {position:{latitude,longitude}}
+      const pos = data?.position || data
+      if (pos && typeof pos.latitude === "number" && typeof pos.longitude === "number") {
+        setVehiclePosition({ latitude: pos.latitude, longitude: pos.longitude, ...data })
+      }
+    }
+
+    const onSimulationCompleted = () => {
+      console.log("[v0] ✅ Simulation completed")
+    }
+
+    socketService.on("vehicle_position_update", onVehicleUpdate)
+    socketService.on("simulation_completed", onSimulationCompleted)
 
     return () => {
-      socketService.off("vehicle_position_update")
+      socketService.off("vehicle_position_update", onVehicleUpdate)
+      socketService.off("simulation_completed", onSimulationCompleted)
     }
   }, [setVehiclePosition])
 

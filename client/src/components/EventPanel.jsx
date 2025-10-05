@@ -7,7 +7,7 @@ import { apiService } from "../services/apiService"
 import { format } from "date-fns"
 
 export default function EventPanel() {
-  const { events, removeEvent, showAllEvents, setShowAllEvents } = useNavigationStore()
+  const { events, setEvents, removeEvent, showAllEvents, setShowAllEvents } = useNavigationStore()
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [newEvent, setNewEvent] = useState({
     type: "traffic_jam",
@@ -56,6 +56,27 @@ export default function EventPanel() {
       console.log("[v0] ✅ Event deactivated:", eventId)
     } catch (error) {
       console.error("[v0] ❌ Failed to deactivate event:", error)
+    }
+  }
+
+  const handleDeleteEvent = async (eventId) => {
+    try {
+      await apiService.deleteEvent(eventId)
+      removeEvent(eventId)
+      console.log("[v0] 🗑️ Event deleted:", eventId)
+    } catch (error) {
+      console.error("[v0] ❌ Failed to delete event:", error)
+    }
+  }
+
+  const handleUpdateEvent = async (eventId, updates) => {
+    try {
+      const result = await apiService.updateEvent(eventId, updates)
+      if (result.status === "success") {
+        setEvents(events.map((e) => (e.eventId === eventId ? result.event : e)))
+      }
+    } catch (error) {
+      console.error("[v0] ❌ Failed to update event:", error)
     }
   }
 
@@ -189,12 +210,22 @@ export default function EventPanel() {
                     <div className="text-xs text-gray-500 mt-1">{event.description}</div>
                   </div>
                 </div>
-                <button
-                  onClick={() => handleDeactivateEvent(event.eventId)}
-                  className="p-1 hover:bg-gray-100 rounded transition-colors"
-                >
-                  <X className="w-4 h-4 text-gray-400" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => handleDeactivateEvent(event.eventId)}
+                    className="p-1 hover:bg-gray-100 rounded transition-colors"
+                    title="Deactivate"
+                  >
+                    <X className="w-4 h-4 text-gray-400" />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteEvent(event.eventId)}
+                    className="p-1 hover:bg-gray-100 rounded transition-colors"
+                    title="Delete"
+                  >
+                    🗑️
+                  </button>
+                </div>
               </div>
 
               <div className="flex items-center gap-2">
@@ -216,6 +247,21 @@ export default function EventPanel() {
                   Affects {event.affectedEdges.length} road segment{event.affectedEdges.length !== 1 ? "s" : ""}
                 </div>
               )}
+              {/* Quick severity toggle */}
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-gray-500">Set severity:</span>
+                {["low", "medium", "high"].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => handleUpdateEvent(event.eventId, { severity: s })}
+                    className={`px-2 py-1 rounded border ${
+                      event.severity === s ? "bg-gray-200 border-gray-300" : "hover:bg-gray-50"
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
             </div>
           ))
         )}

@@ -58,7 +58,9 @@ export default function Sidebar() {
   const handleStartSimulation = () => {
     if (currentRoute?.routeId) {
       console.log("[v0] 🚗 Starting vehicle simulation for route:", currentRoute.routeId)
-      socketService.startVehicleSimulation(currentRoute.routeId, 2000)
+      // Join room before starting to ensure we receive updates
+      socketService.joinRoute(currentRoute.routeId)
+      socketService.startVehicleSimulation(currentRoute.routeId, 1000)
       setIsSimulating(true)
     }
   }

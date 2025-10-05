@@ -7,6 +7,7 @@ import { getSocketHandler } from '../websocket/socketHandler.js';
 class NavigationService {
   constructor() {
     this.activeRoutes = new Map(); // Map<routeId, {algorithm, start, end, path}>
+    this.simulationIntervals = new Map(); // Map<routeId, intervalId>
     this.socketHandler = null;
   }
 
@@ -220,6 +221,12 @@ class NavigationService {
       return;
     }
 
+    // If a simulation is already running for this route, stop it first
+    if (this.simulationIntervals.has(routeId)) {
+      clearInterval(this.simulationIntervals.get(routeId));
+      this.simulationIntervals.delete(routeId);
+    }
+
     let currentSegmentIndex = 0;
     let progress = 0;
     
@@ -229,6 +236,10 @@ class NavigationService {
       if (currentSegmentIndex >= route.path.length) {
         console.log(`Vehicle reached destination for route ${routeId}`);
         clearInterval(intervalId);
+        this.simulationIntervals.delete(routeId);
+        if (this.socketHandler) {
+          this.socketHandler.broadcastSimulationCompleted(routeId);
+        }
         return;
       }
 
@@ -242,6 +253,10 @@ class NavigationService {
         if (currentSegmentIndex >= route.path.length) {
           console.log(`Vehicle reached destination for route ${routeId}`);
           clearInterval(intervalId);
+          this.simulationIntervals.delete(routeId);
+          if (this.socketHandler) {
+            this.socketHandler.broadcastSimulationCompleted(routeId);
+          }
           return;
         }
       }
@@ -270,7 +285,20 @@ class NavigationService {
       
     }, updateInterval);
 
+    this.simulationIntervals.set(routeId, intervalId);
     return intervalId;
+  }
+
+  stopVehicleSimulation(routeId) {
+    const intervalId = this.simulationIntervals.get(routeId);
+    if (intervalId) {
+      clearInterval(intervalId);
+      this.simulationIntervals.delete(routeId);
+      console.log(`Stopped vehicle simulation for route ${routeId}`);
+      return true;
+    }
+    console.log(`No active simulation found for route ${routeId}`);
+    return false;
   }
 
   getNodePosition(nodeId) {
