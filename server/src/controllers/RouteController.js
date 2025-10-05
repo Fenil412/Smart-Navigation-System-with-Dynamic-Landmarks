@@ -56,6 +56,10 @@ class RouteController {
         });
       }
 
+      // Estimate travel time correctly: distance (m) -> seconds at 50 km/h
+      const averageSpeedKmh = 50;
+      const estimatedTimeSeconds = Math.round((route.totalDistance / 1000) / averageSpeedKmh * 3600);
+
       res.json({
         status: API_RESPONSES.SUCCESS,
         data: {
@@ -67,7 +71,7 @@ class RouteController {
           path: route.path,
           totalDistance: route.totalDistance,
           algorithm: route.algorithm,
-          estimatedTime: route.totalDistance / 50 * 3600 // Simple estimation: 50 km/h average
+          estimatedTime: estimatedTimeSeconds
         }
       });
     } catch (error) {

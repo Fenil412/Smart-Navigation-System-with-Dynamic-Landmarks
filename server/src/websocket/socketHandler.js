@@ -121,9 +121,10 @@ const socketHandler = (io) => {
     socket.on("stop_vehicle_simulation", (routeId) => {
       console.log(`🚫 Stopping vehicle simulation for route ${routeId}`)
       try {
-        // Note: We would need to track and clear intervals in a real implementation
+        const stopped = NavigationService.stopVehicleSimulation(routeId)
         socket.emit("simulation_stopped", {
           routeId,
+          stopped,
           timestamp: new Date().toISOString(),
         })
       } catch (error) {
@@ -179,10 +180,16 @@ const socketHandler = (io) => {
     io.to(routeId).emit("vehicle_position_update", positionData)
   }
 
+  // Function to broadcast simulation completion
+  const broadcastSimulationCompleted = (routeId) => {
+    io.to(routeId).emit("simulation_completed", { routeId, timestamp: new Date().toISOString() })
+  }
+
   return {
     broadcastRouteUpdate,
     broadcastNewEvent,
     broadcastVehiclePosition,
+    broadcastSimulationCompleted,
     getConnectedClients: () => connectedClients,
   }
 }

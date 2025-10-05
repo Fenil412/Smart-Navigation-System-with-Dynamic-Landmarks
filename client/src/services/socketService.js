@@ -1,6 +1,17 @@
 import { io } from "socket.io-client"
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:5001"
+// Prefer environment variable; otherwise derive from current host to avoid hardcoded localhost
+const deriveSocketUrl = () => {
+  try {
+    const { protocol, hostname } = window.location
+    const port = 5001
+    return `${protocol}//${hostname}:${port}`
+  } catch (_) {
+    return "http://localhost:5001"
+  }
+}
+
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || deriveSocketUrl()
 
 class SocketService {
   constructor() {

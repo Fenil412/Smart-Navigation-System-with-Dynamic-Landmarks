@@ -64,6 +64,35 @@ class EventController {
       });
     }
   }
+
+  async updateEvent(req, res) {
+    try {
+      const { eventId } = req.params;
+      const updates = req.body;
+      const event = await EventService.updateEvent(eventId, updates);
+      if (!event) {
+        return res.status(404).json({ status: API_RESPONSES.NOT_FOUND, error: 'Event not found' });
+      }
+      res.json({ status: API_RESPONSES.SUCCESS, event });
+    } catch (error) {
+      console.error('Update event error:', error);
+      res.status(500).json({ status: API_RESPONSES.ERROR, error: error.message });
+    }
+  }
+
+  async deleteEvent(req, res) {
+    try {
+      const { eventId } = req.params;
+      const deleted = await EventService.deleteEvent(eventId);
+      if (!deleted) {
+        return res.status(404).json({ status: API_RESPONSES.NOT_FOUND, error: 'Event not found' });
+      }
+      res.json({ status: API_RESPONSES.SUCCESS, deleted: true });
+    } catch (error) {
+      console.error('Delete event error:', error);
+      res.status(500).json({ status: API_RESPONSES.ERROR, error: error.message });
+    }
+  }
 }
 
 export default new EventController();

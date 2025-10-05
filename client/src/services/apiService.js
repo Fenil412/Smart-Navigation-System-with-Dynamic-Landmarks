@@ -1,4 +1,15 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5001/api"
+// Prefer env; otherwise derive from current host to avoid hardcoded localhost
+const deriveApiBaseUrl = () => {
+  try {
+    const { protocol, hostname } = window.location
+    const port = 5001
+    return `${protocol}//${hostname}:${port}/api`
+  } catch (_) {
+    return "http://localhost:5001/api"
+  }
+}
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || deriveApiBaseUrl()
 
 class ApiService {
   async request(endpoint, options = {}) {
@@ -65,6 +76,19 @@ class ApiService {
 
   async getActiveEvents() {
     return this.request("/events/active")
+  }
+
+  async updateEvent(eventId, updates) {
+    return this.request(`/events/${eventId}`, {
+      method: "PUT",
+      body: JSON.stringify(updates),
+    })
+  }
+
+  async deleteEvent(eventId) {
+    return this.request(`/events/${eventId}`, {
+      method: "DELETE",
+    })
   }
 
   async deactivateEvent(eventId) {

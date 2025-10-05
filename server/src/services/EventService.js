@@ -154,6 +154,52 @@ class EventService {
     }
   }
 
+  async updateEvent(eventId, updates) {
+    try {
+      const event = await DynamicEvent.findOne({ eventId });
+      if (!event) return null;
+
+      // Simple field updates
+      Object.assign(event, updates);
+      const saved = await event.save();
+
+      // If severity/type/radius/location changed, recalculate affected edges
+      if (updates.type || updates.severity || updates.radius || updates.location) {
+        const affectedEdges = await this.calculateAffectedEdges(
+          saved.location.latitude,
+          saved.location.longitude,
+          saved.radius,
+          saved.type,
+          saved.severity
+        );
+        saved.affectedEdges = affectedEdges;
+        await saved.save();
+      }
+
+      // Broadcast change
+      if (this.socketHandler) {
+        this.socketHandler.broadcastNewEvent(saved);
+      }
+      return saved;
+    } catch (error) {
+      console.error('Error updating event:', error);
+      throw error;
+    }
+  }
+
+  async deleteEvent(eventId) {
+    try {
+      const result = await DynamicEvent.deleteOne({ eventId });
+      if (result.deletedCount > 0) {
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error deleting event:', error);
+      throw error;
+    }
+  }
+
   revertEventFromGraph(event) {
     try {
       const graph = GraphService.getGraph();
